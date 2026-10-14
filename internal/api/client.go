@@ -87,6 +87,11 @@ type Client interface {
 	//    }
 	// The channel is closed when the verification process reaches a terminal state.
 	RequestOwnUserVerification(t ct.TestLike) chan VerificationStage
+	// RequestDeviceVerification tries to verify the given device, which may belong to
+	// another user on another server. The request is sent as a to-device message.
+	//
+	// Returns a stream of verification stages. See RequestOwnUserVerification.
+	RequestDeviceVerification(t ct.TestLike, userID, deviceID string) chan VerificationStage
 	// Log something to stdout and the underlying client log file
 	Logf(t ct.TestLike, format string, args ...interface{})
 	// The user for this client

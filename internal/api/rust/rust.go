@@ -326,6 +326,11 @@ func (c *RustClient) RequestOwnUserVerification(t ct.TestLike) chan api.Verifica
 	return ch
 }
 
+func (c *RustClient) RequestDeviceVerification(t ct.TestLike, userID, deviceID string) chan api.VerificationStage {
+	t.Skipf("RequestDeviceVerification: the rust FFI cannot request verification of another user's device")
+	return nil
+}
+
 func (c *RustClient) DeletePersistentStorage(t ct.TestLike) {
 	c.FFISpan.Enter()
 	defer c.FFISpan.Exit()

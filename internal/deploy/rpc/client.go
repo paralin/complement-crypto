@@ -217,6 +217,10 @@ func (c *RPCClient) RequestOwnUserVerification(t ct.TestLike) chan api.Verificat
 	panic("unimplemented")
 }
 
+func (c *RPCClient) RequestDeviceVerification(t ct.TestLike, userID, deviceID string) chan api.VerificationStage {
+	panic("unimplemented")
+}
+
 func (c *RPCClient) ListenForVerificationRequests(t ct.TestLike) chan api.VerificationStage {
 	panic("unimplemented")
 }

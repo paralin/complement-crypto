@@ -282,10 +282,12 @@ func (c *JSClient) ensureListeningForVerificationRequests(t ct.TestLike) chan ap
 		// we need to support multiple transition stages firing at once
 		c.verificationChannel = make(chan api.VerificationStage, 4)
 		chrome.MustRunAsyncFn[chrome.Void](t, c.browser.Ctx, `
-	window.__client.on(CryptoEvent.VerificationRequestReceived, function(request) {
-		console.log("CryptoEvent.VerificationRequestReceived fired: request.initiatedByMe " + request.initiatedByMe);
+	// __trackVerificationRequest emits the stages of a request, whether it was
+	// received or sent by this client.
+	window.__trackVerificationRequest = function(request) {
+		console.log("tracking verification request: request.initiatedByMe " + request.initiatedByMe);
 		request.on("change", () => {
-			console.log("RequestOwnUserVerification got phase " + request.phase);
+			console.log("verification request got phase " + request.phase);
 			switch(request.phase) {
 				case VerificationPhase.Unsent:
 					console.log("Unsent");
@@ -350,6 +352,13 @@ func (c *JSClient) ensureListeningForVerificationRequests(t ct.TestLike) chan ap
 			"request.otherDeviceId",
 			"{}",
 		)+`
+	};
+	// A request sent to all of our own devices comes back to us. The sender
+	// already tracks it, so only track requests from other devices.
+	window.__client.on(CryptoEvent.VerificationRequestReceived, function(request) {
+		if (!request.initiatedByMe) {
+			window.__trackVerificationRequest(request);
+		}
 	});`)
 	}
 	return c.verificationChannel
@@ -463,16 +472,23 @@ func (c *JSClient) ListenForVerificationRequests(t ct.TestLike) chan api.Verific
 }
 
 func (c *JSClient) RequestOwnUserVerification(t ct.TestLike) chan api.VerificationStage {
-	// When we request key verification, we will /sendToDevice with * devices, which
-	// rather bizarrely will send the to-device event back to ourselves. This will then
-	// be picked up as a VerificationRequestReceived. The code that listens for
-	// VerificationRequestReceived will figure out it's a request from itself and adjust
-	// the state accordingly. Because of this, we only need to call requestOwnUserVerification
-	// and do nothing else.
+	// The request goes to * devices when this client does not know its other devices
+	// yet, and to the known devices otherwise, so it only sometimes comes back to us.
+	// Track the request we sent directly; the listener ignores the echo.
 	ch := c.ListenForVerificationRequests(t)
 	chrome.MustRunAsyncFn[chrome.Void](t, c.browser.Ctx, `
 	const request = await window.__client.getCrypto().requestOwnUserVerification();
+	window.__trackVerificationRequest(request);
 	`)
+	return ch
+}
+
+func (c *JSClient) RequestDeviceVerification(t ct.TestLike, userID, deviceID string) chan api.VerificationStage {
+	ch := c.ListenForVerificationRequests(t)
+	chrome.MustRunAsyncFn[chrome.Void](t, c.browser.Ctx, fmt.Sprintf(`
+	const request = await window.__client.getCrypto().requestDeviceVerification(%q, %q);
+	window.__trackVerificationRequest(request);
+	`, userID, deviceID))
 	return ch
 }
 
